@@ -134,15 +134,4 @@ public class SpawnModule extends ZModule {
 
         event.setRespawnLocation(ConfigStorage.spawnLocation.getLocation());
     }
-
-    public void onPlayerFirstJoin(Player player) {
-
-        if (!this.isEnable) return;
-
-        if (ConfigStorage.firstSpawnLocation != null && ConfigStorage.firstSpawnLocation.isValid()) {
-            player.teleport(ConfigStorage.firstSpawnLocation.getLocation());
-        } else if (ConfigStorage.spawnLocation != null && ConfigStorage.spawnLocation.isValid()) {
-            player.teleport(ConfigStorage.spawnLocation.getLocation());
-        }
-    }
 }

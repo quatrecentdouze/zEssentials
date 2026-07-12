@@ -95,20 +95,38 @@ public class JsonStorage extends StorageHelper implements IStorage {
 
         File file = getUserFile(uniqueId);
         Persist persist = this.plugin.getPersist();
-        User user = persist.load(User.class, file);
+        boolean fileExists = file.exists();
+        User user = fileExists ? persist.load(User.class, file) : null;
 
         // If user is null, we need to create a new user
         if (user == null) {
 
             user = new ZUser(plugin, uniqueId);
             user.setName(playerName);
-            this.firstJoin(user);
+
+            if (fileExists) {
+                this.backupUnreadableFile(file);
+            } else {
+                this.firstJoin(user);
+            }
 
             persist.save(user, file);
         }
 
         this.users.put(uniqueId, user);
         return user;
+    }
+
+    private void backupUnreadableFile(File file) {
+        File backup = new File(file.getPath() + "_bad");
+        if (backup.exists()) {
+            backup.delete();
+        }
+        if (file.renameTo(backup)) {
+            this.plugin.getLogger().warning("Unable to read " + file.getName() + ", the file has been backed up to " + backup.getName() + " and the user data has been reset.");
+        } else {
+            this.plugin.getLogger().warning("Unable to read " + file.getName() + ", the user data has been reset.");
+        }
     }
 
     private void saveFileAsync(UUID uniqueId) {

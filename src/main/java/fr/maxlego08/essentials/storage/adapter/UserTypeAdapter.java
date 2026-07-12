@@ -106,7 +106,12 @@ public class UserTypeAdapter extends TypeAdapter<User> {
                 case "options" -> {
                     in.beginObject();
                     while (in.hasNext()) {
-                        options.put(Option.valueOf(in.nextName()), in.nextBoolean());
+                        String optionName = in.nextName();
+                        boolean optionValue = in.nextBoolean();
+                        try {
+                            options.put(Option.valueOf(optionName), optionValue);
+                        } catch (IllegalArgumentException ignored) {
+                        }
                     }
                     in.endObject();
                 }
@@ -120,7 +125,12 @@ public class UserTypeAdapter extends TypeAdapter<User> {
                 case "power-tools" -> {
                     in.beginObject();
                     while (in.hasNext()) {
-                        powerTools.put(Material.valueOf(in.nextName()), in.nextString());
+                        String materialName = in.nextName();
+                        String command = in.nextString();
+                        try {
+                            powerTools.put(Material.valueOf(materialName), command);
+                        } catch (IllegalArgumentException ignored) {
+                        }
                     }
                     in.endObject();
                 }
@@ -145,6 +155,7 @@ public class UserTypeAdapter extends TypeAdapter<User> {
                                 case "name" -> homeName = in.nextString();
                                 case "location" -> location = in.nextString();
                                 case "material" -> material = in.nextString();
+                                default -> in.skipValue();
                             }
                         }
                         in.endObject();
@@ -152,7 +163,7 @@ public class UserTypeAdapter extends TypeAdapter<User> {
                     }
                     in.endArray();
                 }
-
+                default -> in.skipValue();
             }
         }
         in.endObject();
