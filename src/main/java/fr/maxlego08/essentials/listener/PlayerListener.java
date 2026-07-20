@@ -11,6 +11,7 @@ import fr.maxlego08.essentials.api.utils.DynamicCooldown;
 import fr.maxlego08.essentials.storage.ConfigStorage;
 import fr.maxlego08.essentials.zutils.utils.TimerBuilder;
 import fr.maxlego08.essentials.zutils.utils.ZUtils;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Phantom;
@@ -190,10 +191,21 @@ public class PlayerListener extends ZUtils implements Listener {
         if (user != null) user.startCurrentSessionPlayTime();
 
         if (user != null && user.isFirstJoin()) {
+            Location spawnLocation = null;
             if (ConfigStorage.firstSpawnLocation != null && ConfigStorage.firstSpawnLocation.isValid()) {
-                this.plugin.getScheduler().teleportAsync(player, ConfigStorage.firstSpawnLocation.getLocation());
+                spawnLocation = ConfigStorage.firstSpawnLocation.getLocation();
             } else if (ConfigStorage.spawnLocation != null && ConfigStorage.spawnLocation.isValid()) {
-                this.plugin.getScheduler().teleportAsync(player, ConfigStorage.spawnLocation.getLocation());
+                spawnLocation = ConfigStorage.spawnLocation.getLocation();
+            }
+
+            if (spawnLocation != null) {
+                if (player.isInsideVehicle()) {
+                    player.leaveVehicle();
+                }
+                if (!player.getPassengers().isEmpty()) {
+                    player.eject();
+                }
+                this.plugin.getScheduler().teleportAsync(player, spawnLocation);
             }
         }
 
