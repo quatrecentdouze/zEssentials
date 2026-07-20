@@ -69,10 +69,22 @@ public class SpawnModule extends ZModule {
                     var player = playerJoinEvent.getPlayer();
                     if (ConfigStorage.spawnLocation != null && ConfigStorage.spawnLocation.isValid()) {
                         Location spawnLoc = ConfigStorage.spawnLocation.getLocation();
-                        if (spawnLoc != null) player.teleport(spawnLoc);
+                        if (spawnLoc != null) {
+                            spawnModule.dismount(player);
+                            spawnModule.plugin.getScheduler().teleportAsync(player, spawnLoc);
+                        }
                     }
                 }
             }, this.plugin);
+        }
+    }
+
+    private void dismount(Player player) {
+        if (player.isInsideVehicle()) {
+            player.leaveVehicle();
+        }
+        if (!player.getPassengers().isEmpty()) {
+            player.eject();
         }
     }
 

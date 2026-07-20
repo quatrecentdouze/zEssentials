@@ -315,12 +315,24 @@ public class ZUser extends ZUtils implements User {
         Player player = this.getPlayer();
         if (player == null || location == null || location.getWorld() == null) return;
 
-        // ToDo, https://github.com/PaperMC/Folia/?tab=readme-ov-file#current-broken-api
-        // When folia API is update, remove this
-        if (this.plugin.isFolia()) {
-            this.setLastLocation();
-        }
-        this.plugin.getScheduler().teleportAsync(player, location);
+        this.plugin.getScheduler().runAtEntity(player, wrappedTask -> {
+
+            // ToDo, https://github.com/PaperMC/Folia/?tab=readme-ov-file#current-broken-api
+            // When folia API is update, remove this
+            if (this.plugin.isFolia()) {
+                this.setLastLocation();
+            }
+
+            if (player.isInsideVehicle()) {
+                player.leaveVehicle();
+            }
+
+            if (!player.getPassengers().isEmpty()) {
+                player.eject();
+            }
+
+            this.plugin.getScheduler().teleportAsync(player, location);
+        });
 
         int duration = this.plugin.getModuleManager().getModule(TeleportationModule.class).getTeleportProtectionDelay(player);
         if (duration == 0) return;
