@@ -39,6 +39,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -50,7 +51,7 @@ public class SqlStorage extends StorageHelper implements IStorage {
     private final DatabaseConnection connection;
     private final Repositories repositories;
     private final Map<String, PendingEconomyUpdate> economyUpdateQueue = new HashMap<>();
-    private final Set<UUID> existingUUIDs = new HashSet<>();
+    private final Set<UUID> existingUUIDs = ConcurrentHashMap.newKeySet();
 
     public SqlStorage(EssentialsPlugin plugin, StorageType storageType) {
         super(plugin);
@@ -220,6 +221,7 @@ public class SqlStorage extends StorageHelper implements IStorage {
             }
 
             with(UserRepository.class).upsert(uniqueId, playerName); // Create the player or update his name
+            this.existingUUIDs.add(uniqueId);
 
             // Remove stale name-to-UUID cache entries for this UUID under a different name
             this.localUUIDS.entrySet().removeIf(entry -> entry.getValue().equals(uniqueId) && !entry.getKey().equals(playerName));
@@ -372,7 +374,7 @@ public class SqlStorage extends StorageHelper implements IStorage {
     }
 
     private void ensureUserExists(UUID uniqueId) {
-        if (this.users.containsKey(uniqueId) || this.existingUUIDs.contains(uniqueId)) {
+        if (this.existingUUIDs.contains(uniqueId)) {
             return;
         }
 

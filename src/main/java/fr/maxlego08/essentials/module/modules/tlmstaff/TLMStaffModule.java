@@ -3,7 +3,6 @@ package fr.maxlego08.essentials.module.modules.tlmstaff;
 import fr.maxlego08.essentials.ZEssentialsPlugin;
 import fr.maxlego08.essentials.api.dto.StaffModeSnapshotDTO;
 import fr.maxlego08.essentials.api.dto.UserDTO;
-import fr.maxlego08.essentials.api.event.events.user.UserJoinEvent;
 import fr.maxlego08.essentials.api.event.events.user.UserQuitEvent;
 import fr.maxlego08.essentials.api.user.Option;
 import fr.maxlego08.essentials.api.user.User;
@@ -24,6 +23,7 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.Inventory;
@@ -382,22 +382,29 @@ public class TLMStaffModule extends ZModule {
     }
 
     @EventHandler
-    public void onUserJoin(UserJoinEvent event) {
-        User user = event.getUser();
-        Player player = user.getPlayer();
-        if (player == null) return;
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        User user = getUser(player);
+        if (user == null) return;
         UUID uniqueId = user.getUniqueId();
         String address = user.getAddress();
+        if ((address == null || address.isBlank()) && player.getAddress() != null && player.getAddress().getAddress() != null) {
+            address = player.getAddress().getAddress().getHostAddress();
+            user.setAddress(address);
+        }
+        if (address == null || address.isBlank()) return;
         Date now = new Date();
+        String playerName = player.getName();
+        String finalAddress = address;
 
         this.plugin.getScheduler().runAsync(task -> {
-            getStorage().upsertPlayerAddress(uniqueId, address, now, now);
+            getStorage().upsertPlayerAddress(uniqueId, finalAddress, now, now);
             Optional<StaffModeSnapshotDTO> snapshot = getStorage().getStaffModeSnapshot(uniqueId);
             List<UserDTO> accounts = List.of();
             Map<UUID, Boolean> banned = new HashMap<>();
             if (isEnable && altAlertEnabled) {
                 try {
-                    accounts = getStorage().getUsers(address).stream().filter(dto -> !dto.unique_id().equals(uniqueId)).toList();
+                    accounts = getStorage().getUsers(finalAddress).stream().filter(dto -> !dto.unique_id().equals(uniqueId)).toList();
                     for (UserDTO account : accounts) banned.put(account.unique_id(), getStorage().isBan(account.unique_id()));
                 } catch (RuntimeException exception) {
                     this.plugin.getLogger().severe(exception.getMessage());
@@ -409,13 +416,13 @@ public class TLMStaffModule extends ZModule {
                 this.plugin.getScheduler().runAtEntity(player, entityTask -> restoreNow(player, stored, false));
             }
             List<UserDTO> finalAccounts = accounts;
-            if (!finalAccounts.isEmpty()) this.plugin.getScheduler().runNextTick(globalTask -> broadcastAltAlert(player, finalAccounts, banned));
+            if (!finalAccounts.isEmpty()) this.plugin.getScheduler().runNextTick(globalTask -> broadcastAltAlert(playerName, finalAccounts, banned));
         });
     }
 
-    private void broadcastAltAlert(Player player, List<UserDTO> accounts, Map<UUID, Boolean> banned) {
+    private void broadcastAltAlert(String playerName, List<UserDTO> accounts, Map<UUID, Boolean> banned) {
         String formattedAccounts = accounts.stream().map(account -> formatAccount(account, banned.getOrDefault(account.unique_id(), false))).collect(Collectors.joining(altAlertSeparator));
-        String formattedPlayer = altAlertOnlineFormat.replace("%account%", player.getName());
+        String formattedPlayer = altAlertOnlineFormat.replace("%account%", playerName);
         String alert = altAlertMessage.replace("%player%", formattedPlayer).replace("%accounts%", formattedAccounts);
         for (Player recipient : Bukkit.getOnlinePlayers()) {
             if (!recipient.hasPermission(altAlertPermission)) continue;
