@@ -1108,3 +1108,6 @@ death-message-player: "#99E0FF%player% &7werd gedood door #34cfe0%killer% &7met 
 death-message-mob: "#99E0FF%player% &7werd gedood door &c%mob%&7."
 death-message-mythic-mob: "#99E0FF%player% &7werd gedood door <gradient:#ff6600:#ff0000>%mob%</gradient>&7!"
 death-message-fists: "&7vuisten"
+description-tlmstaff-inspect: "Inventaris van een online speler inspecteren"
+description-tlmstaff-staff: "Staffmodus in- of uitschakelen"
+command-endersee-already-open: "<error>De ender chest van &f%player% <error>wordt al bewerkt."

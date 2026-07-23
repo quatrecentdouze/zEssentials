@@ -4,12 +4,9 @@ import fr.maxlego08.essentials.api.EssentialsPlugin;
 import fr.maxlego08.essentials.api.commands.CommandResultType;
 import fr.maxlego08.essentials.api.commands.Permission;
 import fr.maxlego08.essentials.api.messages.Message;
-import fr.maxlego08.essentials.api.nms.PlayerUtil;
 import fr.maxlego08.essentials.zutils.utils.commands.VCommand;
-import fr.maxlego08.menu.common.utils.nms.NmsVersion;
-import org.bukkit.OfflinePlayer;
 
-import java.lang.reflect.Constructor;
+import java.util.UUID;
 
 public class CommandEnderSee extends VCommand {
 
@@ -23,39 +20,25 @@ public class CommandEnderSee extends VCommand {
 
     @Override
     protected CommandResultType perform(EssentialsPlugin plugin) {
-
-        OfflinePlayer offlinePlayer = this.argAsOfflinePlayer(0);
-        if (offlinePlayer.isOnline()) {
-
-            var targetPlayer = offlinePlayer.getPlayer();
-            if (targetPlayer == null) return CommandResultType.SYNTAX_ERROR;
-            this.player.openInventory(targetPlayer.getEnderChest());
-
-        } else {
-
-            if (!hasPermission(sender, Permission.ESSENTIALS_ENDERSEE_OFFLINE)) return CommandResultType.NO_PERMISSION;
-
-            String version = NmsVersion.getCurrentVersion().name().replace("V_", "v");
-            String className = String.format("fr.maxlego08.essentials.nms.%s.PlayerUtils", version);
-
-            try {
-
-                Class<?> clazz = Class.forName(className);
-                Constructor<?> constructor = clazz.getConstructor(EssentialsPlugin.class);
-                PlayerUtil playerUtil = (PlayerUtil) constructor.newInstance(this.plugin);
-                if (!playerUtil.openEnderChest(player, offlinePlayer)) {
-                    message(sender, Message.COMMAND_ENDERSEE_ERROR, "%player%", offlinePlayer.getName());
-                    return CommandResultType.DEFAULT;
+        String identifier = this.argAsString(0);
+        EnderChestAccess access = new EnderChestAccess(plugin);
+        try {
+            UUID uniqueId = UUID.fromString(identifier);
+            if (!hasOfflinePermission(plugin, uniqueId)) return CommandResultType.NO_PERMISSION;
+            access.open(this.player, uniqueId, identifier);
+        } catch (IllegalArgumentException exception) {
+            fetchUniqueId(identifier, uniqueId -> {
+                if (!hasOfflinePermission(plugin, uniqueId)) {
+                    message(this.sender, Message.COMMAND_NO_PERMISSION);
+                    return;
                 }
-
-            } catch (Exception exception) {
-                this.plugin.getLogger().severe("Cannot create a new instance for the class " + className);
-                this.plugin.getLogger().severe(exception.getMessage());
-                message(sender, Message.COMMAND_ENDERSEE_ERROR, "%player%", offlinePlayer.getName());
-                return CommandResultType.DEFAULT;
-            }
-
+                access.open(this.player, uniqueId, identifier);
+            });
         }
         return CommandResultType.SUCCESS;
+    }
+
+    private boolean hasOfflinePermission(EssentialsPlugin plugin, UUID uniqueId) {
+        return plugin.getServer().getPlayer(uniqueId) != null || hasPermission(this.sender, Permission.ESSENTIALS_ENDERSEE_OFFLINE);
     }
 }

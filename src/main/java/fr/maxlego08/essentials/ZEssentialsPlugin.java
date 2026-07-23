@@ -285,7 +285,7 @@ public final class ZEssentialsPlugin extends ZPlugin implements EssentialsPlugin
 
         this.getServer().getServicesManager().register(EssentialsPlugin.class, this, this, ServicePriority.Normal);
 
-        this.registerListener(new InvseeListener());
+        this.registerListener(new InvseeListener(this));
 
         this.generateDocs();
 
@@ -318,6 +318,8 @@ public final class ZEssentialsPlugin extends ZPlugin implements EssentialsPlugin
 
     @Override
     public void onDisable() {
+
+        if (this.moduleManager != null) this.moduleManager.getModules().forEach(fr.maxlego08.essentials.api.modules.Module::onDisable);
 
         // Storage
         if (this.storageManager != null) this.storageManager.onDisable();

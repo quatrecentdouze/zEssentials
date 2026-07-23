@@ -107,6 +107,8 @@ public class SqlStorage extends StorageHelper implements IStorage {
 
         MigrationManager.registerMigration(new DropStepMigration());
         MigrationManager.registerMigration(new CreateUserStepV2Migration());
+        MigrationManager.registerMigration(new CreatePlayerAddressMigration());
+        MigrationManager.registerMigration(new CreateStaffModeSnapshotMigration());
 
         // Repositories
         this.repositories = new Repositories(plugin, this.connection);
@@ -132,8 +134,12 @@ public class SqlStorage extends StorageHelper implements IStorage {
         this.repositories.register(LinkHistoryRepository.class);
         this.repositories.register(PrivateMessagesRepository.class);
         this.repositories.register(UserStepRepository.class);
+        this.repositories.register(PlayerAddressRepository.class);
+        this.repositories.register(StaffModeSnapshotRepository.class);
 
         MigrationManager.execute(this.connection, JULogger.from(this.plugin.getLogger()));
+
+        with(PlayerAddressRepository.class).backfillPlayTimes();
 
         with(UserCooldownsRepository.class).deleteExpiredCooldowns();
 
@@ -441,19 +447,14 @@ public class SqlStorage extends StorageHelper implements IStorage {
             }, () -> {
 
                 // Get uuid from database
-                List<UserDTO> userDTOS = with(UserRepository.class).selectUsers(userName);
-                if (userDTOS.isEmpty()) {
+                Optional<UUID> storedUniqueId = with(UserRepository.class).selectUniqueIdIgnoreCase(userName);
+                if (storedUniqueId.isEmpty()) {
                     consumer.accept(null);
                     return;
                 }
-
-                if (userDTOS.size() > 1) {
-                    this.plugin.getLogger().warning("Found " + userDTOS.size() + " users with the name '" + userName + "'. This may cause economy inconsistencies. Consider cleaning up duplicate entries in the users table.");
-                }
-
-                UserDTO userDTO = userDTOS.getFirst();
-                this.localUUIDS.put(userName, userDTO.unique_id());
-                consumer.accept(userDTO.unique_id());
+                UUID uniqueId = storedUniqueId.get();
+                this.localUUIDS.put(userName, uniqueId);
+                consumer.accept(uniqueId);
             });
         });
     }
@@ -572,6 +573,34 @@ public class SqlStorage extends StorageHelper implements IStorage {
     @Override
     public List<UserDTO> getUsers(String ip) {
         return with(UserRepository.class).getUsers(ip);
+    }
+
+    @Override
+    public boolean upsertPlayerAddress(UUID uniqueId, String address, Date firstSeen, Date lastSeen) {
+        ensureUserExists(uniqueId);
+        return with(PlayerAddressRepository.class).upsert(uniqueId, address, firstSeen, lastSeen);
+    }
+
+    @Override
+    public List<PlayerAddressDTO> getPlayerAddresses(UUID uniqueId) {
+        return with(PlayerAddressRepository.class).select(uniqueId);
+    }
+
+    @Override
+    public boolean upsertStaffModeSnapshot(StaffModeSnapshotDTO snapshot) {
+        ensureUserExists(snapshot.unique_id());
+        with(StaffModeSnapshotRepository.class).upsert(snapshot);
+        return with(StaffModeSnapshotRepository.class).select(snapshot.unique_id()).isPresent();
+    }
+
+    @Override
+    public Optional<StaffModeSnapshotDTO> getStaffModeSnapshot(UUID uniqueId) {
+        return with(StaffModeSnapshotRepository.class).select(uniqueId);
+    }
+
+    @Override
+    public boolean deleteStaffModeSnapshot(UUID uniqueId) {
+        return with(StaffModeSnapshotRepository.class).delete(uniqueId);
     }
 
     @Override

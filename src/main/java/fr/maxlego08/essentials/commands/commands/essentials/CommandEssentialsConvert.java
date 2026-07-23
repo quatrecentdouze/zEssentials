@@ -11,6 +11,7 @@ import fr.maxlego08.essentials.convert.essentialsx.EssentialsXConvert;
 import fr.maxlego08.essentials.convert.huskhomes.HuskHomesConvert;
 import fr.maxlego08.essentials.convert.playervaultx.PlayerVaultXConvert;
 import fr.maxlego08.essentials.convert.sunlight.SunlightConvert;
+import fr.maxlego08.essentials.convert.staffplus.StaffPlusConvert;
 import fr.maxlego08.essentials.zutils.utils.commands.VCommand;
 
 import java.util.Arrays;
@@ -51,6 +52,7 @@ public class CommandEssentialsConvert extends VCommand {
         COINSENGINE(CoinsEngineConvert.class),
         HUSKHOMES(HuskHomesConvert.class),
         AXVAULTS(AxVaultsConvert.class),
+        STAFFPLUS(StaffPlusConvert.class),
 
         ;
 

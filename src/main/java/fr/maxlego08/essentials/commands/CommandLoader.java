@@ -52,6 +52,8 @@ import fr.maxlego08.essentials.commands.commands.messages.CommandMessageToggle;
 import fr.maxlego08.essentials.commands.commands.messages.CommandReply;
 import fr.maxlego08.essentials.commands.commands.messages.CommandSocialSpy;
 import fr.maxlego08.essentials.commands.commands.teleport.CommandTpaHereToggle;
+import fr.maxlego08.essentials.commands.commands.tlmstaff.CommandInspect;
+import fr.maxlego08.essentials.commands.commands.tlmstaff.CommandStaffMode;
 import fr.maxlego08.essentials.commands.commands.teleport.CommandTpToggle;
 import fr.maxlego08.essentials.commands.commands.sanction.CommandBan;
 import fr.maxlego08.essentials.commands.commands.sanction.CommandFreeze;
@@ -166,6 +168,8 @@ public class CommandLoader {
         register("craft", CommandCraft.class);
         register("enchanting", CommandEnchanting.class);
         register("invsee", CommandInvsee.class);
+        register("inspect", CommandInspect.class);
+        register("staff", CommandStaffMode.class);
         register("clearinventory", ClearInventoryCommand.class, "clear", "ci");
         register("afk", CommandAfk.class);
         register("compact", CommandCompact.class, "blocks", "condense");

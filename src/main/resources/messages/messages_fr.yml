@@ -1081,3 +1081,6 @@ death-message-player: "#99E0FF%player% &7a été tué par #34cfe0%killer% &7avec
 death-message-mob: "#99E0FF%player% &7a été tué par &c%mob%&7."
 death-message-mythic-mob: "#99E0FF%player% &7a été tué par <gradient:#ff6600:#ff0000>%mob%</gradient>&7!"
 death-message-fists: "&7ses poings"
+description-tlmstaff-inspect: "Inspecter l'inventaire d'un joueur en ligne"
+description-tlmstaff-staff: "Activer ou désactiver le mode staff"
+command-endersee-already-open: "<error>L'ender chest de &f%player% <error>est déjà en cours de modification."

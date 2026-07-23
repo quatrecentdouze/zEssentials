@@ -11,8 +11,10 @@ import fr.maxlego08.essentials.api.dto.EconomyTransactionDTO;
 import fr.maxlego08.essentials.api.dto.HomeDTO;
 import fr.maxlego08.essentials.api.dto.MailBoxDTO;
 import fr.maxlego08.essentials.api.dto.PlayerSlotDTO;
+import fr.maxlego08.essentials.api.dto.PlayerAddressDTO;
 import fr.maxlego08.essentials.api.dto.SanctionDTO;
 import fr.maxlego08.essentials.api.dto.StepDTO;
+import fr.maxlego08.essentials.api.dto.StaffModeSnapshotDTO;
 import fr.maxlego08.essentials.api.dto.UserDTO;
 import fr.maxlego08.essentials.api.dto.UserEconomyDTO;
 import fr.maxlego08.essentials.api.dto.UserEconomyRankingDTO;
@@ -344,6 +346,31 @@ public class JsonStorage extends StorageHelper implements IStorage {
     @Override
     public List<UserDTO> getUsers(String ip) {
         throw new NotImplementedException("getUsers is not implemented, use MYSQL storage");
+    }
+
+    @Override
+    public boolean upsertPlayerAddress(UUID uniqueId, String address, java.util.Date firstSeen, java.util.Date lastSeen) {
+        return false;
+    }
+
+    @Override
+    public List<PlayerAddressDTO> getPlayerAddresses(UUID uniqueId) {
+        return new ArrayList<>();
+    }
+
+    @Override
+    public boolean upsertStaffModeSnapshot(StaffModeSnapshotDTO snapshot) {
+        return false;
+    }
+
+    @Override
+    public Optional<StaffModeSnapshotDTO> getStaffModeSnapshot(UUID uniqueId) {
+        return Optional.empty();
+    }
+
+    @Override
+    public boolean deleteStaffModeSnapshot(UUID uniqueId) {
+        return false;
     }
 
     @Override

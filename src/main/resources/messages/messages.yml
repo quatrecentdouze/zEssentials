@@ -1112,3 +1112,6 @@ death-message-player: "#99E0FF%player% &7was slain by #34cfe0%killer% &7using %w
 death-message-mob: "#99E0FF%player% &7was killed by &c%mob%&7."
 death-message-mythic-mob: "#99E0FF%player% &7was slain by <gradient:#ff6600:#ff0000>%mob%</gradient>&7!"
 death-message-fists: "&7fists"
+description-tlmstaff-inspect: "Inspect an online player's inventory"
+description-tlmstaff-staff: "Toggle staff mode"
+command-endersee-already-open: "<error>The ender chest of &f%player% <error>is already being edited."

@@ -13,9 +13,13 @@ import fr.maxlego08.sarah.DatabaseConnection;
 import fr.maxlego08.sarah.conditions.JoinCondition;
 import fr.maxlego08.sarah.database.DatabaseType;
 
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public class UserRepository extends Repository {
@@ -185,9 +189,22 @@ public class UserRepository extends Repository {
     public List<UserDTO> getUsers(String ip) {
         return select(UserDTO.class, table -> {
             table.distinct();
-            table.leftJoin("%prefix%user_play_times", "pt", "unique_id", "%prefix%users", "unique_id");
-            table.where("pt.address", ip);
+            table.leftJoin("%prefix%player_addresses", "pa", "unique_id", "%prefix%users", "unique_id");
+            table.where("pa.address", ip);
         });
+    }
+
+    public Optional<UUID> selectUniqueIdIgnoreCase(String userName) {
+        String query = "SELECT unique_id FROM " + getTableName() + " WHERE LOWER(name) = LOWER(?) ORDER BY updated_at DESC LIMIT 1";
+        try (PreparedStatement statement = getConnection().prepareStatement(query)) {
+            statement.setString(1, userName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) return Optional.of(UUID.fromString(resultSet.getString("unique_id")));
+            }
+        } catch (SQLException | IllegalArgumentException exception) {
+            this.plugin.getLogger().severe(exception.getMessage());
+        }
+        return Optional.empty();
     }
 
     public List<UserEconomyRankingDTO> getBalanceRanking(String economyName) {

@@ -9,7 +9,9 @@ import fr.maxlego08.essentials.api.dto.EconomyDTO;
 import fr.maxlego08.essentials.api.dto.EconomyTransactionDTO;
 import fr.maxlego08.essentials.api.dto.MailBoxDTO;
 import fr.maxlego08.essentials.api.dto.PlayerSlotDTO;
+import fr.maxlego08.essentials.api.dto.PlayerAddressDTO;
 import fr.maxlego08.essentials.api.dto.SanctionDTO;
+import fr.maxlego08.essentials.api.dto.StaffModeSnapshotDTO;
 import fr.maxlego08.essentials.api.dto.StepDTO;
 import fr.maxlego08.essentials.api.dto.UserDTO;
 import fr.maxlego08.essentials.api.dto.UserEconomyDTO;
@@ -345,6 +347,16 @@ public interface IStorage {
      * @return a list of users
      */
     List<UserDTO> getUsers(String ip);
+
+    boolean upsertPlayerAddress(UUID uniqueId, String address, java.util.Date firstSeen, java.util.Date lastSeen);
+
+    List<PlayerAddressDTO> getPlayerAddresses(UUID uniqueId);
+
+    boolean upsertStaffModeSnapshot(StaffModeSnapshotDTO snapshot);
+
+    Optional<StaffModeSnapshotDTO> getStaffModeSnapshot(UUID uniqueId);
+
+    boolean deleteStaffModeSnapshot(UUID uniqueId);
 
     /**
      * Retrieves cooldowns for a user.

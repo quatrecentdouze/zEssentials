@@ -1022,6 +1022,9 @@ public enum Message {
     DEATH_MESSAGE_MOB("#99E0FF%player% &7was killed by &c%mob%&7."),
     DEATH_MESSAGE_MYTHIC_MOB("#99E0FF%player% &7was slain by <gradient:#ff6600:#ff0000>%mob%</gradient>&7!"),
     DEATH_MESSAGE_FISTS("&7fists"),
+    DESCRIPTION_TLMSTAFF_INSPECT("Inspect an online player's inventory"),
+    DESCRIPTION_TLMSTAFF_STAFF("Toggle staff mode"),
+    COMMAND_ENDERSEE_ALREADY_OPEN("<error>The ender chest of &f%player% <error>is already being edited."),
     ;
 
     private EssentialsPlugin plugin;

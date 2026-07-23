@@ -1,0 +1,45 @@
+enable: true
+
+alt-alert:
+  enabled: true
+  permission: "essentials.tlmstaff.altalert"
+  message: "&8[&cAlt Alert&8] %player% &7joined with known accounts: %accounts%"
+  separator: "&8, "
+  formats:
+    online: "&a%account%"
+    offline: "&7%account%"
+    banned: "&c%account%"
+
+inspect:
+  enabled: true
+  title: "&7Inspect: &a%player%"
+
+staff-mode:
+  enabled: true
+  random-teleport-exempt-permission: "essentials.tlmstaff.randomteleport.exempt"
+  vanish-item:
+    material: LIME_DYE
+    name: "&aVanish"
+    lore:
+      - "&7Right click to toggle vanish."
+    slot: 4
+    glow: true
+  teleport-item:
+    material: COMPASS
+    name: "&bRandom teleport"
+    lore:
+      - "&7Right click to visit a random player."
+    slot: 8
+    glow: true
+
+messages:
+  inspect-opened: "&aYou are inspecting &f%player%&a."
+  inspect-self: "&cYou cannot inspect yourself."
+  inspect-offline: "&cThis player is not online."
+  inspect-target-left: "&cThe inspected player disconnected."
+  staff-enabled: "&aStaff mode enabled."
+  staff-disabled: "&cStaff mode disabled."
+  staff-transition: "&eA staff mode transition is already running."
+  staff-storage-error: "&cUnable to persist or restore your staff inventory."
+  teleport-empty: "&cNo eligible player is online."
+  teleport-success: "&aTeleported to &f%player%&a."

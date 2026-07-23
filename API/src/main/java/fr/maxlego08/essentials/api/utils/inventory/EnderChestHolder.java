@@ -7,14 +7,26 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
-public record EnderChestHolder(Player player) implements InventoryHolder {
+public class EnderChestHolder implements InventoryHolder {
+
+    private final Player player;
+    private Inventory inventory;
+
+    public EnderChestHolder(Player player) {
+        this.player = player;
+    }
+
+    public Player player() {
+        return player;
+    }
 
     @Override
     public @NotNull Inventory getInventory() {
+        if (inventory != null) return inventory;
         Inventory enderChestInventory = player.getEnderChest();
-        Inventory newInventory = Bukkit.createInventory(this, 27, enderChestInventory.getType().defaultTitle());
+        inventory = Bukkit.createInventory(this, 27, enderChestInventory.getType().defaultTitle());
         int slot = 0;
-        for (ItemStack content : enderChestInventory.getContents()) newInventory.setItem(slot++, content);
-        return newInventory;
+        for (ItemStack content : enderChestInventory.getContents()) inventory.setItem(slot++, content);
+        return inventory;
     }
 }
