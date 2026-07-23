@@ -21,6 +21,7 @@ import fr.maxlego08.essentials.migrations.drop.DropPowerToolsMigration;
 import fr.maxlego08.essentials.migrations.drop.DropStepMigration;
 import fr.maxlego08.essentials.migrations.update.*;
 import fr.maxlego08.essentials.storage.GlobalDatabaseConfiguration;
+import fr.maxlego08.essentials.storage.SerializedSqliteConnection;
 import fr.maxlego08.essentials.storage.database.Repositories;
 import fr.maxlego08.essentials.storage.database.Repository;
 import fr.maxlego08.essentials.storage.database.repositeries.*;
@@ -55,7 +56,7 @@ public class SqlStorage extends StorageHelper implements IStorage {
         super(plugin);
         DatabaseConfiguration databaseConfiguration = getDatabaseConfiguration(plugin, storageType);
         this.connection = switch (storageType) {
-            case SQLITE -> new SqliteConnection(databaseConfiguration, plugin.getDataFolder(), JULogger.from(plugin.getLogger()));
+            case SQLITE -> new SerializedSqliteConnection(databaseConfiguration, plugin.getDataFolder(), JULogger.from(plugin.getLogger()));
             default -> new HikariDatabaseConnection(databaseConfiguration, JULogger.from(plugin.getLogger()));
         };
 

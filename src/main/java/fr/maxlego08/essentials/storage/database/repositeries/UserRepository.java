@@ -13,6 +13,7 @@ import fr.maxlego08.sarah.DatabaseConnection;
 import fr.maxlego08.sarah.conditions.JoinCondition;
 import fr.maxlego08.sarah.database.DatabaseType;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -196,7 +197,7 @@ public class UserRepository extends Repository {
 
     public Optional<UUID> selectUniqueIdIgnoreCase(String userName) {
         String query = "SELECT unique_id FROM " + getTableName() + " WHERE LOWER(name) = LOWER(?) ORDER BY updated_at DESC LIMIT 1";
-        try (PreparedStatement statement = getConnection().prepareStatement(query)) {
+        try (Connection connection = getConnection(); PreparedStatement statement = connection.prepareStatement(query)) {
             statement.setString(1, userName);
             try (ResultSet resultSet = statement.executeQuery()) {
                 if (resultSet.next()) return Optional.of(UUID.fromString(resultSet.getString("unique_id")));

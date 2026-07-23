@@ -6,6 +6,7 @@ import fr.maxlego08.essentials.storage.database.Repository;
 import fr.maxlego08.sarah.DatabaseConnection;
 import fr.maxlego08.sarah.database.DatabaseType;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -29,7 +30,7 @@ public class PlayerAddressRepository extends Repository {
                 ? "INSERT INTO " + getTableName() + " (unique_id, address, first_seen, last_seen) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE first_seen = LEAST(first_seen, VALUES(first_seen)), last_seen = GREATEST(last_seen, VALUES(last_seen))"
                 : "INSERT INTO " + getTableName() + " (unique_id, address, first_seen, last_seen) VALUES (?, ?, ?, ?) ON CONFLICT(unique_id, address) DO UPDATE SET first_seen = MIN(first_seen, excluded.first_seen), last_seen = MAX(last_seen, excluded.last_seen)";
 
-        try (PreparedStatement statement = getConnection().prepareStatement(query)) {
+        try (Connection connection = getConnection(); PreparedStatement statement = connection.prepareStatement(query)) {
             statement.setString(1, uniqueId.toString());
             statement.setString(2, address);
             statement.setTimestamp(3, new Timestamp(firstSeen.getTime()));
@@ -55,7 +56,7 @@ public class PlayerAddressRepository extends Repository {
         String query = "SELECT pt.unique_id, pt.address, MIN(pt.created_at) AS first_seen, MAX(pt.created_at) AS last_seen FROM " + prefix + "user_play_times pt LEFT JOIN " + getTableName() + " pa ON pa.unique_id = pt.unique_id AND pa.address = pt.address WHERE pt.address IS NOT NULL AND pt.address <> '' AND pa.unique_id IS NULL GROUP BY pt.unique_id, pt.address";
         List<PlayerAddressDTO> addresses = new ArrayList<>();
 
-        try (PreparedStatement statement = getConnection().prepareStatement(query); ResultSet resultSet = statement.executeQuery()) {
+        try (Connection connection = getConnection(); PreparedStatement statement = connection.prepareStatement(query); ResultSet resultSet = statement.executeQuery()) {
             while (resultSet.next()) {
                 try {
                     Timestamp firstSeen = resultSet.getTimestamp("first_seen");

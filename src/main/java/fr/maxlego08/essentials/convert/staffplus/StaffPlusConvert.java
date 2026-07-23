@@ -16,7 +16,9 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 public class StaffPlusConvert extends ZUtils implements Convert {
@@ -48,20 +50,17 @@ public class StaffPlusConvert extends ZUtils implements Convert {
         int skipped = 0;
         int invalid = 0;
 
-        try (Connection source = openSource(folder, configuration); Statement statement = source.createStatement(); ResultSet resultSet = statement.executeQuery("SELECT uuid, username, ip_address, last_seen FROM staff_players")) {
+        try {
+            SourceData sourceData = readSource(folder, configuration);
+            invalid = sourceData.invalid();
             UserRepository users = sqlStorage.with(UserRepository.class);
             PlayerAddressRepository addresses = sqlStorage.with(PlayerAddressRepository.class);
-            while (resultSet.next()) {
+            for (StaffPlayer staffPlayer : sourceData.players()) {
                 try {
-                    UUID uniqueId = UUID.fromString(resultSet.getString("uuid"));
-                    String username = resultSet.getString("username");
-                    String address = resultSet.getString("ip_address");
-                    Timestamp timestamp = resultSet.getTimestamp("last_seen");
-                    if (username == null || username.isBlank() || address == null || address.isBlank() || address.length() > 45) {
-                        invalid++;
-                        continue;
-                    }
-                    Date lastSeen = timestamp == null ? new Date() : new Date(timestamp.getTime());
+                    UUID uniqueId = staffPlayer.uniqueId();
+                    String username = staffPlayer.username();
+                    String address = staffPlayer.address();
+                    Date lastSeen = staffPlayer.lastSeen();
                     boolean exists = addresses.exists(uniqueId, address);
                     users.upsert(uniqueId, username);
                     if (!addresses.upsert(uniqueId, address, lastSeen, lastSeen)) {
@@ -80,6 +79,30 @@ public class StaffPlusConvert extends ZUtils implements Convert {
             this.plugin.getLogger().severe(exception.getMessage());
             notify(sender, "&cStaff+ migration failed: " + exception.getMessage());
         }
+    }
+
+    private SourceData readSource(File folder, YamlConfiguration configuration) throws Exception {
+        List<StaffPlayer> players = new ArrayList<>();
+        int invalid = 0;
+        try (Connection source = openSource(folder, configuration); Statement statement = source.createStatement(); ResultSet resultSet = statement.executeQuery("SELECT uuid, username, ip_address, last_seen FROM staff_players")) {
+            while (resultSet.next()) {
+                try {
+                    UUID uniqueId = UUID.fromString(resultSet.getString("uuid"));
+                    String username = resultSet.getString("username");
+                    String address = resultSet.getString("ip_address");
+                    Timestamp timestamp = resultSet.getTimestamp("last_seen");
+                    if (username == null || username.isBlank() || address == null || address.isBlank() || address.length() > 45) {
+                        invalid++;
+                        continue;
+                    }
+                    Date lastSeen = timestamp == null ? new Date() : new Date(timestamp.getTime());
+                    players.add(new StaffPlayer(uniqueId, username, address, lastSeen));
+                } catch (RuntimeException exception) {
+                    invalid++;
+                }
+            }
+        }
+        return new SourceData(players, invalid);
     }
 
     private Connection openSource(File folder, YamlConfiguration configuration) throws Exception {
@@ -104,5 +127,11 @@ public class StaffPlusConvert extends ZUtils implements Convert {
         } else {
             message(sender, content);
         }
+    }
+
+    private record StaffPlayer(UUID uniqueId, String username, String address, Date lastSeen) {
+    }
+
+    private record SourceData(List<StaffPlayer> players, int invalid) {
     }
 }
