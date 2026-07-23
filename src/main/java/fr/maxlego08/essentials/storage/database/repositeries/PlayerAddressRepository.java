@@ -10,6 +10,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -51,18 +52,26 @@ public class PlayerAddressRepository extends Repository {
 
     public void backfillPlayTimes() {
         String prefix = this.connection.getDatabaseConfiguration().getTablePrefix();
-        String query = "SELECT unique_id, address, MIN(created_at) AS first_seen, MAX(created_at) AS last_seen FROM " + prefix + "user_play_times WHERE address IS NOT NULL AND address <> '' GROUP BY unique_id, address";
+        String query = "SELECT pt.unique_id, pt.address, MIN(pt.created_at) AS first_seen, MAX(pt.created_at) AS last_seen FROM " + prefix + "user_play_times pt LEFT JOIN " + getTableName() + " pa ON pa.unique_id = pt.unique_id AND pa.address = pt.address WHERE pt.address IS NOT NULL AND pt.address <> '' AND pa.unique_id IS NULL GROUP BY pt.unique_id, pt.address";
+        List<PlayerAddressDTO> addresses = new ArrayList<>();
 
         try (PreparedStatement statement = getConnection().prepareStatement(query); ResultSet resultSet = statement.executeQuery()) {
             while (resultSet.next()) {
                 try {
-                    upsert(UUID.fromString(resultSet.getString("unique_id")), resultSet.getString("address"), resultSet.getTimestamp("first_seen"), resultSet.getTimestamp("last_seen"));
+                    Timestamp firstSeen = resultSet.getTimestamp("first_seen");
+                    Timestamp lastSeen = resultSet.getTimestamp("last_seen");
+                    String address = resultSet.getString("address");
+                    if (firstSeen == null || lastSeen == null || address == null || address.length() > 45) continue;
+                    addresses.add(new PlayerAddressDTO(UUID.fromString(resultSet.getString("unique_id")), address, firstSeen, lastSeen));
                 } catch (RuntimeException exception) {
                     this.plugin.getLogger().severe(exception.getMessage());
                 }
             }
         } catch (SQLException exception) {
             this.plugin.getLogger().severe(exception.getMessage());
+            return;
         }
+
+        addresses.forEach(address -> upsert(address.unique_id(), address.address(), address.first_seen(), address.last_seen()));
     }
 }
