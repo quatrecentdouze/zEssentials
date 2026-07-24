@@ -6,7 +6,6 @@ import fr.maxlego08.essentials.api.commands.Permission;
 import fr.maxlego08.essentials.api.messages.Message;
 import fr.maxlego08.essentials.zutils.utils.commands.VCommand;
 
-import java.util.List;
 import java.util.UUID;
 
 public class CommandEnderChest extends VCommand {
@@ -14,7 +13,7 @@ public class CommandEnderChest extends VCommand {
     public CommandEnderChest(EssentialsPlugin plugin) {
         super(plugin);
         this.setDescription(Message.DESCRIPTION_ENDERCHEST);
-        this.addOptionalArg("player", (sender, args) -> plugin.getStorageManager() == null ? List.of() : plugin.getStorageManager().getStorage().getPlayerNames());
+        this.addOptionalOfflinePlayerNameArg();
         this.onlyPlayers();
     }
 

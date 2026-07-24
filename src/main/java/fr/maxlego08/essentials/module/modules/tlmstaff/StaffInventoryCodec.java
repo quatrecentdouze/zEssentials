@@ -24,9 +24,11 @@ public final class StaffInventoryCodec {
         }
     }
 
-    public static ItemStack[] decode(String value) {
+    public static ItemStack[] decode(String value, int expectedLength) {
         try (ByteArrayInputStream bytes = new ByteArrayInputStream(Base64.getDecoder().decode(value)); BukkitObjectInputStream input = new BukkitObjectInputStream(bytes)) {
-            ItemStack[] contents = new ItemStack[input.readInt()];
+            int length = input.readInt();
+            if (length != expectedLength) throw new IllegalStateException("Unexpected inventory size: " + length);
+            ItemStack[] contents = new ItemStack[length];
             for (int index = 0; index < contents.length; index++) contents[index] = (ItemStack) input.readObject();
             return contents;
         } catch (IOException | ClassNotFoundException | IllegalArgumentException exception) {

@@ -4,8 +4,10 @@ import fr.maxlego08.essentials.ZEssentialsPlugin;
 import fr.maxlego08.essentials.api.dto.StaffModeSnapshotDTO;
 import fr.maxlego08.essentials.api.dto.UserDTO;
 import fr.maxlego08.essentials.api.event.events.user.UserQuitEvent;
+import fr.maxlego08.essentials.api.storage.StorageType;
 import fr.maxlego08.essentials.api.user.Option;
 import fr.maxlego08.essentials.api.user.User;
+import fr.maxlego08.essentials.commands.commands.enderchest.EnderChestAccess;
 import fr.maxlego08.essentials.module.ZModule;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -136,7 +138,7 @@ public class TLMStaffModule extends ZModule {
     }
 
     public void toggleStaff(Player player) {
-        if (!staffModeEnabled) {
+        if (!staffModeEnabled || this.plugin.getStorageManager().getType() == StorageType.JSON) {
             message(player, staffStorageErrorMessage);
             return;
         }
@@ -154,14 +156,18 @@ public class TLMStaffModule extends ZModule {
         }
 
         this.plugin.getScheduler().runAsync(task -> {
-            Optional<StaffModeSnapshotDTO> stored = getStorage().getStaffModeSnapshot(uniqueId);
-            if (stored.isPresent()) {
-                StaffModeSnapshotDTO snapshot = stored.get();
-                activeSnapshots.put(uniqueId, snapshot);
-                this.plugin.getScheduler().runAtEntity(player, entityTask -> restoreNow(player, snapshot, true));
-                return;
+            try {
+                Optional<StaffModeSnapshotDTO> stored = getStorage().getStaffModeSnapshot(uniqueId);
+                if (stored.isPresent()) {
+                    StaffModeSnapshotDTO snapshot = stored.get();
+                    activeSnapshots.put(uniqueId, snapshot);
+                    this.plugin.getScheduler().runAtEntityWithFallback(player, entityTask -> restoreNow(player, snapshot, true), () -> transitions.remove(uniqueId));
+                    return;
+                }
+                this.plugin.getScheduler().runAtEntityWithFallback(player, entityTask -> saveAndActivate(player), () -> transitions.remove(uniqueId));
+            } catch (RuntimeException exception) {
+                handleStorageFailure(player, uniqueId, exception);
             }
-            this.plugin.getScheduler().runAtEntityWithFallback(player, entityTask -> saveAndActivate(player), () -> transitions.remove(uniqueId));
         });
     }
 
@@ -177,14 +183,24 @@ public class TLMStaffModule extends ZModule {
         }
 
         this.plugin.getScheduler().runAsync(task -> {
-            if (!getStorage().upsertStaffModeSnapshot(snapshot)) {
-                transitions.remove(uniqueId);
-                this.plugin.getScheduler().runAtEntity(player, entityTask -> message(player, staffStorageErrorMessage));
-                return;
+            try {
+                if (!getStorage().upsertStaffModeSnapshot(snapshot)) {
+                    transitions.remove(uniqueId);
+                    this.plugin.getScheduler().runAtEntity(player, entityTask -> message(player, staffStorageErrorMessage));
+                    return;
+                }
+                activeSnapshots.put(uniqueId, snapshot);
+                this.plugin.getScheduler().runAtEntityWithFallback(player, entityTask -> activateNow(player), () -> transitions.remove(uniqueId));
+            } catch (RuntimeException exception) {
+                handleStorageFailure(player, uniqueId, exception);
             }
-            activeSnapshots.put(uniqueId, snapshot);
-            this.plugin.getScheduler().runAtEntityWithFallback(player, entityTask -> activateNow(player), () -> transitions.remove(uniqueId));
         });
+    }
+
+    private void handleStorageFailure(Player player, UUID uniqueId, RuntimeException exception) {
+        transitions.remove(uniqueId);
+        this.plugin.getLogger().severe(String.valueOf(exception.getMessage()));
+        this.plugin.getScheduler().runAtEntity(player, task -> message(player, staffStorageErrorMessage));
     }
 
     private StaffModeSnapshotDTO captureSnapshot(Player player) {
@@ -197,15 +213,30 @@ public class TLMStaffModule extends ZModule {
     }
 
     private void activateNow(Player player) {
-        player.closeInventory();
-        player.getInventory().clear();
-        player.getInventory().setArmorContents(new ItemStack[4]);
-        player.getInventory().setItemInOffHand(new ItemStack(Material.AIR));
-        player.setGameMode(GameMode.CREATIVE);
-        player.getInventory().setItem(normalizeSlot(vanishSlot), createTool(player, "vanish", vanishMaterial, vanishName, vanishLore, vanishGlow));
-        player.getInventory().setItem(normalizeSlot(teleportSlot), createTool(player, "teleport", teleportMaterial, teleportName, teleportLore, teleportGlow));
-        transitions.remove(player.getUniqueId());
-        message(player, staffEnabledMessage);
+        UUID uniqueId = player.getUniqueId();
+        try {
+            player.closeInventory();
+            player.getInventory().clear();
+            player.getInventory().setArmorContents(new ItemStack[4]);
+            player.getInventory().setItemInOffHand(new ItemStack(Material.AIR));
+            player.setGameMode(GameMode.CREATIVE);
+            int vanishTargetSlot = normalizeSlot(vanishSlot);
+            int teleportTargetSlot = normalizeSlot(teleportSlot);
+            if (teleportTargetSlot == vanishTargetSlot) teleportTargetSlot = (teleportTargetSlot + 1) % 36;
+            player.getInventory().setItem(vanishTargetSlot, createTool(player, "vanish", vanishMaterial, vanishName, vanishLore, vanishGlow));
+            player.getInventory().setItem(teleportTargetSlot, createTool(player, "teleport", teleportMaterial, teleportName, teleportLore, teleportGlow));
+            transitions.remove(uniqueId);
+            message(player, staffEnabledMessage);
+        } catch (RuntimeException exception) {
+            StaffModeSnapshotDTO snapshot = activeSnapshots.get(uniqueId);
+            if (snapshot == null) {
+                transitions.remove(uniqueId);
+                message(player, staffStorageErrorMessage);
+                this.plugin.getLogger().severe(String.valueOf(exception.getMessage()));
+                return;
+            }
+            restoreNow(player, snapshot, false);
+        }
     }
 
     private int normalizeSlot(int slot) {
@@ -229,14 +260,17 @@ public class TLMStaffModule extends ZModule {
 
     private void restoreNow(Player player, StaffModeSnapshotDTO snapshot, boolean notify) {
         try {
+            ItemStack[] inventory = StaffInventoryCodec.decode(snapshot.inventory(), 36);
+            ItemStack[] armor = StaffInventoryCodec.decode(snapshot.armor(), 4);
+            ItemStack[] offhand = StaffInventoryCodec.decode(snapshot.offhand(), 1);
+            GameMode gameMode = GameMode.valueOf(snapshot.game_mode());
             player.closeInventory();
             player.getInventory().clear();
-            player.getInventory().setStorageContents(StaffInventoryCodec.decode(snapshot.inventory()));
-            player.getInventory().setArmorContents(StaffInventoryCodec.decode(snapshot.armor()));
-            ItemStack[] offhand = StaffInventoryCodec.decode(snapshot.offhand());
+            player.getInventory().setStorageContents(inventory);
+            player.getInventory().setArmorContents(armor);
             player.getInventory().setItemInOffHand(offhand.length == 0 || offhand[0] == null ? new ItemStack(Material.AIR) : offhand[0]);
             player.getInventory().setHeldItemSlot(Math.max(0, Math.min(8, snapshot.held_slot())));
-            player.setGameMode(GameMode.valueOf(snapshot.game_mode()));
+            player.setGameMode(gameMode);
             player.setFlying(false);
             player.setAllowFlight(snapshot.allow_flight());
             if (snapshot.allow_flight() && snapshot.flying()) player.setFlying(true);
@@ -385,7 +419,7 @@ public class TLMStaffModule extends ZModule {
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         User user = getUser(player);
-        if (user == null) return;
+        if (user == null || this.plugin.getStorageManager().getType() == StorageType.JSON) return;
         UUID uniqueId = user.getUniqueId();
         String address = user.getAddress();
         if ((address == null || address.isBlank()) && player.getAddress() != null && player.getAddress().getAddress() != null) {
@@ -398,8 +432,18 @@ public class TLMStaffModule extends ZModule {
         String finalAddress = address;
 
         this.plugin.getScheduler().runAsync(task -> {
-            getStorage().upsertPlayerAddress(uniqueId, finalAddress, now, now);
-            Optional<StaffModeSnapshotDTO> snapshot = getStorage().getStaffModeSnapshot(uniqueId);
+            try {
+                getStorage().upsertPlayerAddress(uniqueId, finalAddress, now, now);
+            } catch (RuntimeException exception) {
+                this.plugin.getLogger().severe(String.valueOf(exception.getMessage()));
+            }
+            Optional<StaffModeSnapshotDTO> snapshot;
+            try {
+                snapshot = getStorage().getStaffModeSnapshot(uniqueId);
+            } catch (RuntimeException exception) {
+                this.plugin.getLogger().severe(String.valueOf(exception.getMessage()));
+                snapshot = Optional.empty();
+            }
             List<UserDTO> accounts = List.of();
             Map<UUID, Boolean> banned = new HashMap<>();
             if (isEnable && altAlertEnabled) {
@@ -407,14 +451,14 @@ public class TLMStaffModule extends ZModule {
                     accounts = getStorage().getUsers(finalAddress).stream().filter(dto -> !dto.unique_id().equals(uniqueId)).toList();
                     for (UserDTO account : accounts) banned.put(account.unique_id(), getStorage().isBan(account.unique_id()));
                 } catch (RuntimeException exception) {
-                    this.plugin.getLogger().severe(exception.getMessage());
+                    this.plugin.getLogger().severe(String.valueOf(exception.getMessage()));
                 }
             }
-            if (snapshot.isPresent()) {
-                StaffModeSnapshotDTO stored = snapshot.get();
+            snapshot.ifPresent(stored -> {
+                if (!transitions.add(uniqueId)) return;
                 activeSnapshots.put(uniqueId, stored);
-                this.plugin.getScheduler().runAtEntity(player, entityTask -> restoreNow(player, stored, false));
-            }
+                this.plugin.getScheduler().runAtEntityWithFallback(player, entityTask -> restoreNow(player, stored, false), () -> transitions.remove(uniqueId));
+            });
             List<UserDTO> finalAccounts = accounts;
             if (!finalAccounts.isEmpty()) this.plugin.getScheduler().runNextTick(globalTask -> broadcastAltAlert(playerName, finalAccounts, banned));
         });
@@ -461,7 +505,7 @@ public class TLMStaffModule extends ZModule {
                     Player target = Bukkit.getPlayer(session.targetUniqueId());
                     if (target != null) {
                         viewer.closeInventory();
-                        viewer.openInventory(target.getEnderChest());
+                        new EnderChestAccess(this.plugin).open(viewer, target.getUniqueId(), target.getName());
                     }
                 }
                 return;

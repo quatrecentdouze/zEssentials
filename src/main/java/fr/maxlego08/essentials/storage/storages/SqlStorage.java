@@ -110,6 +110,7 @@ public class SqlStorage extends StorageHelper implements IStorage {
         MigrationManager.registerMigration(new DropStepMigration());
         MigrationManager.registerMigration(new CreateUserStepV2Migration());
         MigrationManager.registerMigration(new CreatePlayerAddressMigration());
+        MigrationManager.registerMigration(new CreatePlayerAddressIndexMigration());
         MigrationManager.registerMigration(new CreateStaffModeSnapshotMigration());
 
         // Repositories

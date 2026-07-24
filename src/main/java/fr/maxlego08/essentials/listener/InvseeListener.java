@@ -57,10 +57,37 @@ public class InvseeListener implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         OfflineEnderChestSessions.releaseTarget(event.getPlayer().getUniqueId()).ifPresent(session -> {
-            if (session.inventory() != null) copyEnderChest(session.inventory(), event.getPlayer());
+            Player target = event.getPlayer();
             Player viewer = Bukkit.getPlayer(session.viewerUniqueId());
-            if (viewer != null) this.plugin.getScheduler().runAtEntity(viewer, task -> viewer.closeInventory());
+            if (viewer == null) {
+                if (session.inventory() != null) {
+                    copyEnderChest(session.inventory(), target);
+                    target.saveData();
+                }
+                return;
+            }
+            this.plugin.getScheduler().runAtEntityWithFallback(viewer, task -> {
+                ItemStack[] contents = session.inventory() == null ? null : session.inventory().getContents().clone();
+                viewer.closeInventory();
+                if (contents == null) return;
+                this.plugin.getScheduler().runAtEntityWithFallback(target, targetTask -> {
+                    target.getEnderChest().setContents(contents);
+                    target.saveData();
+                }, () -> saveReleasedSession(session.inventory()));
+            }, () -> saveReleasedSession(session.inventory()));
         });
+    }
+
+    private void saveReleasedSession(Inventory inventory) {
+        if (inventory == null) return;
+        if (inventory.getHolder() instanceof OfflineEnderChestHolder holder) {
+            holder.save();
+            return;
+        }
+        if (inventory.getHolder() instanceof EnderChestHolder holder) {
+            copyEnderChest(inventory, holder.player());
+            holder.player().saveData();
+        }
     }
 
     private void copyEnderChest(Inventory source, Player target) {

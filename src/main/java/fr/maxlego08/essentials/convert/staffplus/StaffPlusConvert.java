@@ -70,7 +70,7 @@ public class StaffPlusConvert extends ZUtils implements Convert {
                     } else {
                         imported++;
                     }
-                } catch (RuntimeException exception) {
+                } catch (Exception exception) {
                     invalid++;
                 }
             }
@@ -118,7 +118,14 @@ public class StaffPlusConvert extends ZUtils implements Convert {
         File database = new File(folder, "database.db");
         if (!database.isFile()) throw new IllegalStateException("Unable to find plugins/Staff/database.db");
         Class.forName("org.sqlite.JDBC");
-        return DriverManager.getConnection("jdbc:sqlite:" + database.getAbsolutePath());
+        Connection connection = DriverManager.getConnection("jdbc:sqlite:" + database.getAbsolutePath());
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("PRAGMA busy_timeout = 10000");
+            return connection;
+        } catch (Exception exception) {
+            connection.close();
+            throw exception;
+        }
     }
 
     private void notify(CommandSender sender, String content) {

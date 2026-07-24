@@ -33,14 +33,16 @@ public class SerializedSqliteConnection extends SqliteConnection {
     @Override
     public Connection getConnection() {
         this.connectionLock.lock();
+        Connection connection = null;
         try {
-            Connection connection = connectToDatabase();
+            connection = connectToDatabase();
+            Connection delegatedConnection = connection;
             AtomicBoolean closed = new AtomicBoolean();
             return (Connection) Proxy.newProxyInstance(SerializedSqliteConnection.class.getClassLoader(), new Class[]{Connection.class}, (proxy, method, arguments) -> {
                 if (method.getName().equals("close") && method.getParameterCount() == 0) {
                     if (closed.compareAndSet(false, true)) {
                         try {
-                            connection.close();
+                            delegatedConnection.close();
                         } finally {
                             this.connectionLock.unlock();
                         }
@@ -48,12 +50,18 @@ public class SerializedSqliteConnection extends SqliteConnection {
                     return null;
                 }
                 try {
-                    return method.invoke(connection, arguments);
+                    return method.invoke(delegatedConnection, arguments);
                 } catch (InvocationTargetException exception) {
                     throw exception.getCause();
                 }
             });
         } catch (Exception exception) {
+            if (connection != null) {
+                try {
+                    connection.close();
+                } catch (Exception ignored) {
+                }
+            }
             this.connectionLock.unlock();
             throw new DatabaseException("connect", exception);
         }
