@@ -17,6 +17,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
@@ -188,11 +189,33 @@ public class UserRepository extends Repository {
     }
 
     public List<UserDTO> getUsers(String ip) {
-        return select(UserDTO.class, table -> {
-            table.distinct();
-            table.leftJoin("%prefix%player_addresses", "pa", "unique_id", "%prefix%users", "unique_id");
-            table.where("pa", "address", ip);
-        });
+        String addressTable = this.connection.getDatabaseConfiguration().getTablePrefix() + "player_addresses";
+        String query = "SELECT DISTINCT u.unique_id, u.name, u.last_location, u.ban_sanction_id, u.mute_sanction_id, u.play_time, u.created_at, u.updated_at, u.vote, u.vote_offline, u.frozen, u.fly_seconds FROM " + getTableName() + " u INNER JOIN " + addressTable + " pa ON pa.unique_id = u.unique_id WHERE pa.address = ?";
+        List<UserDTO> users = new ArrayList<>();
+        try (Connection connection = getConnection(); PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setString(1, ip);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    users.add(new UserDTO(UUID.fromString(resultSet.getString("unique_id")), resultSet.getString("name"), resultSet.getString("last_location"), nullableInteger(resultSet, "ban_sanction_id"), nullableInteger(resultSet, "mute_sanction_id"), resultSet.getLong("play_time"), resultSet.getTimestamp("created_at"), resultSet.getTimestamp("updated_at"), resultSet.getLong("vote"), resultSet.getLong("vote_offline"), nullableBoolean(resultSet, "frozen"), resultSet.getLong("fly_seconds")));
+                }
+            }
+        } catch (SQLException | IllegalArgumentException exception) {
+            this.plugin.getLogger().severe(exception.getMessage());
+        }
+        return users;
+    }
+
+    private Integer nullableInteger(ResultSet resultSet, String column) throws SQLException {
+        Object value = resultSet.getObject(column);
+        return value == null ? null : ((Number) value).intValue();
+    }
+
+    private Boolean nullableBoolean(ResultSet resultSet, String column) throws SQLException {
+        Object value = resultSet.getObject(column);
+        if (value == null) return null;
+        if (value instanceof Boolean booleanValue) return booleanValue;
+        if (value instanceof Number number) return number.intValue() != 0;
+        return Boolean.parseBoolean(value.toString());
     }
 
     public Optional<UUID> selectUniqueIdIgnoreCase(String userName) {
