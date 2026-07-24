@@ -191,7 +191,7 @@ public class UserRepository extends Repository {
         return select(UserDTO.class, table -> {
             table.distinct();
             table.leftJoin("%prefix%player_addresses", "pa", "unique_id", "%prefix%users", "unique_id");
-            table.where("pa.address", ip);
+            table.where("pa", "address", ip);
         });
     }
 
