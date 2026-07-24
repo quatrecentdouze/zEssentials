@@ -55,7 +55,7 @@ public class ZStorageManager extends ZUtils implements StorageManager {
 
     @Override
     public StorageType getType() {
-        return this.plugin.getStorageManager().getType();
+        return this.plugin.getConfiguration().getStorageType();
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
