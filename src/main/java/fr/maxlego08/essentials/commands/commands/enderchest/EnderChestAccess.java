@@ -38,7 +38,8 @@ public class EnderChestAccess extends ZUtils {
             return;
         }
 
-        String version = NmsVersion.getCurrentVersion().name().replace("V_", "v");
+        String minecraftVersion = Bukkit.getMinecraftVersion();
+        String version = minecraftVersion.startsWith("26.1") ? "v26_1_2" : NmsVersion.getCurrentVersion().name().replace("V_", "v");
         String className = String.format("fr.maxlego08.essentials.nms.%s.PlayerUtils", version);
         try {
             Class<?> clazz = Class.forName(className);
@@ -53,7 +54,7 @@ public class EnderChestAccess extends ZUtils {
                 }
                 return;
             }
-        } catch (Exception exception) {
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException exception) {
             this.plugin.getLogger().severe("Cannot create a new instance for the class " + className);
             this.plugin.getLogger().severe(String.valueOf(exception.getMessage()));
         }

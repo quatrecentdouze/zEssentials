@@ -1,5 +1,6 @@
 package fr.maxlego08.essentials.nms.v1_21_7;
 
+import com.mojang.serialization.DynamicOps;
 import fr.maxlego08.essentials.api.EssentialsPlugin;
 import fr.maxlego08.essentials.api.nms.PlayerUtil;
 import fr.maxlego08.essentials.api.utils.inventory.OfflineEnderChestHolder;
@@ -22,6 +23,8 @@ import org.bukkit.inventory.ItemStack;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Optional;
 
 public class PlayerUtils implements PlayerUtil {
@@ -53,7 +56,7 @@ public class PlayerUtils implements PlayerUtil {
             CompoundTag itemData = items.getCompoundOrEmpty(index);
             int slot = itemData.getByteOr("Slot", (byte) -1) & 255;
             if (slot < 0 || slot >= contents.length) continue;
-            net.minecraft.world.item.ItemStack.CODEC.parse(RegistryOps.create(NbtOps.INSTANCE, server.registryAccess()), itemData).result().filter(item -> !item.isEmpty()).ifPresent(item -> contents[slot] = item.asBukkitCopy());
+            net.minecraft.world.item.ItemStack.CODEC.parse(createRegistryOps(server), itemData).result().filter(item -> !item.isEmpty()).ifPresent(item -> contents[slot] = item.asBukkitCopy());
         }
         return contents;
     }
@@ -74,7 +77,7 @@ public class PlayerUtils implements PlayerUtil {
                 ItemStack bukkitItem = contents[slot];
                 if (bukkitItem == null || bukkitItem.isEmpty()) continue;
                 net.minecraft.world.item.ItemStack item = net.minecraft.world.item.ItemStack.fromBukkitCopy(bukkitItem);
-                Tag encoded = net.minecraft.world.item.ItemStack.CODEC.encodeStart(RegistryOps.create(NbtOps.INSTANCE, server.registryAccess()), item).result().orElse(null);
+                Tag encoded = net.minecraft.world.item.ItemStack.CODEC.encodeStart(createRegistryOps(server), item).result().orElse(null);
                 if (!(encoded instanceof CompoundTag itemData)) continue;
                 itemData.putByte("Slot", (byte) slot);
                 items.add(itemData);
@@ -89,6 +92,23 @@ public class PlayerUtils implements PlayerUtil {
         } catch (Exception exception) {
             this.plugin.getLogger().severe(exception.getMessage());
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private DynamicOps<Tag> createRegistryOps(MinecraftServer server) {
+        Object registryAccess = server.registryAccess();
+        try {
+            for (Method method : RegistryOps.class.getMethods()) {
+                Class<?>[] parameterTypes = method.getParameterTypes();
+                if (!Modifier.isStatic(method.getModifiers()) || parameterTypes.length != 2) continue;
+                if (!DynamicOps.class.isAssignableFrom(parameterTypes[0]) || !parameterTypes[1].isInstance(registryAccess)) continue;
+                Object result = method.invoke(null, NbtOps.INSTANCE, registryAccess);
+                if (result instanceof DynamicOps<?> dynamicOps) return (DynamicOps<Tag>) dynamicOps;
+            }
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException(exception);
+        }
+        throw new IllegalStateException("Cannot create registry operations");
     }
 
     @Override

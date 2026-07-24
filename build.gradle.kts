@@ -1,7 +1,7 @@
 plugins {
     `java-library`
-    id("com.gradleup.shadow") version "9.0.0-beta11"
-    id("io.papermc.paperweight.userdev") version "2.0.0-beta.19" apply false
+    id("com.gradleup.shadow") version "9.4.3"
+    id("io.papermc.paperweight.userdev") version "2.0.0-beta.21" apply false
     id("re.alwyn974.groupez.repository") version "1.0.0"
 }
 
@@ -94,6 +94,7 @@ dependencies {
     api(project(":NMS:V1_21_9", configuration = "reobf"))
     api(project(":NMS:V1_21_10", configuration = "reobf"))
     api(project(":NMS:V1_21_11", configuration = "reobf"))
+    runtimeOnly(files(rootProject.project(":NMS:V26_1_2").tasks.named("jar")))
 
     rootProject.subprojects.filter { it.path.startsWith(":Hooks:") }.forEach { subproject ->
         api(project(subproject.path))
