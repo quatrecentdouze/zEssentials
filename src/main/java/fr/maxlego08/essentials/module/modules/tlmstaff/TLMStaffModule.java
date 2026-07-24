@@ -2,13 +2,22 @@ package fr.maxlego08.essentials.module.modules.tlmstaff;
 
 import fr.maxlego08.essentials.ZEssentialsPlugin;
 import fr.maxlego08.essentials.api.dto.StaffModeSnapshotDTO;
-import fr.maxlego08.essentials.api.dto.UserDTO;
 import fr.maxlego08.essentials.api.event.events.user.UserQuitEvent;
+import fr.maxlego08.essentials.api.messages.Message;
+import fr.maxlego08.essentials.api.sanction.Sanction;
 import fr.maxlego08.essentials.api.storage.StorageType;
 import fr.maxlego08.essentials.api.user.Option;
 import fr.maxlego08.essentials.api.user.User;
+import fr.maxlego08.essentials.api.utils.component.AdventureComponent;
 import fr.maxlego08.essentials.commands.commands.enderchest.EnderChestAccess;
 import fr.maxlego08.essentials.module.ZModule;
+import fr.maxlego08.essentials.zutils.utils.TimerBuilder;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.HoverEvent;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
+import org.bukkit.BanEntry;
+import org.bukkit.BanList;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
@@ -35,12 +44,14 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 
+import java.time.DateTimeException;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -64,6 +75,12 @@ public class TLMStaffModule extends ZModule {
     private String altAlertOnlineFormat;
     private String altAlertOfflineFormat;
     private String altAlertBannedFormat;
+    private List<String> altAlertOnlineHover;
+    private List<String> altAlertOfflineHover;
+    private List<String> altAlertBannedHover;
+    private String altAlertPermanent;
+    private String altAlertUnknown;
+    private DateTimeFormatter altAlertDateFormatter;
     private boolean inspectEnabled;
     private String inspectTitle;
     private boolean staffModeEnabled;
@@ -106,6 +123,17 @@ public class TLMStaffModule extends ZModule {
         this.altAlertOnlineFormat = configuration.getString("alt-alert.formats.online", "&a%account%");
         this.altAlertOfflineFormat = configuration.getString("alt-alert.formats.offline", "&7%account%");
         this.altAlertBannedFormat = configuration.getString("alt-alert.formats.banned", "&c%account%");
+        this.altAlertOnlineHover = readLines(configuration.getStringList("alt-alert.hover.online"), "&7Online for: &f%time%");
+        this.altAlertOfflineHover = readLines(configuration.getStringList("alt-alert.hover.offline"), "&7Last connection: &f%last_seen%");
+        this.altAlertBannedHover = readLines(configuration.getStringList("alt-alert.hover.banned"), "&7Banned by: &f%sender%", "&7Reason: &f%reason%", "&7Remaining: &f%remaining%");
+        this.altAlertPermanent = configuration.getString("alt-alert.hover.permanent", "Permanent");
+        this.altAlertUnknown = configuration.getString("alt-alert.hover.unknown", "Unknown");
+        String dateFormat = configuration.getString("alt-alert.hover.date-format", "yyyy-MM-dd HH:mm:ss");
+        try {
+            this.altAlertDateFormatter = DateTimeFormatter.ofPattern(dateFormat).withZone(ZoneId.systemDefault());
+        } catch (DateTimeException exception) {
+            this.altAlertDateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
+        }
         this.inspectEnabled = configuration.getBoolean("inspect.enabled", true);
         this.inspectTitle = configuration.getString("inspect.title", "&7Inspect: &a%player%");
         this.staffModeEnabled = configuration.getBoolean("staff-mode.enabled", true);
@@ -130,6 +158,10 @@ public class TLMStaffModule extends ZModule {
         this.staffStorageErrorMessage = configuration.getString("messages.staff-storage-error", "&cUnable to persist or restore your staff inventory.");
         this.teleportEmptyMessage = configuration.getString("messages.teleport-empty", "&cNo eligible player is online.");
         this.teleportSuccessMessage = configuration.getString("messages.teleport-success", "&aTeleported to &f%player%&a.");
+    }
+
+    private List<String> readLines(List<String> configured, String... fallback) {
+        return configured.isEmpty() ? List.of(fallback) : List.copyOf(configured);
     }
 
     private Material readMaterial(String value, Material fallback) {
@@ -444,12 +476,13 @@ public class TLMStaffModule extends ZModule {
                 this.plugin.getLogger().severe(String.valueOf(exception.getMessage()));
                 snapshot = Optional.empty();
             }
-            List<UserDTO> accounts = List.of();
-            Map<UUID, Boolean> banned = new HashMap<>();
+            List<AltAccountData> accounts = List.of();
             if (isEnable && altAlertEnabled) {
                 try {
-                    accounts = getStorage().getUsers(finalAddress).stream().filter(dto -> !dto.unique_id().equals(uniqueId)).toList();
-                    for (UserDTO account : accounts) banned.put(account.unique_id(), getStorage().isBan(account.unique_id()));
+                    accounts = getStorage().getUsers(finalAddress).stream()
+                            .filter(dto -> !dto.unique_id().equals(uniqueId))
+                            .map(dto -> new AltAccountData(dto.unique_id(), dto.name(), dto.updated_at(), getStorage().getBan(dto.unique_id())))
+                            .toList();
                 } catch (RuntimeException exception) {
                     this.plugin.getLogger().severe(String.valueOf(exception.getMessage()));
                 }
@@ -459,26 +492,128 @@ public class TLMStaffModule extends ZModule {
                 activeSnapshots.put(uniqueId, stored);
                 this.plugin.getScheduler().runAtEntityWithFallback(player, entityTask -> restoreNow(player, stored, false), () -> transitions.remove(uniqueId));
             });
-            List<UserDTO> finalAccounts = accounts;
-            if (!finalAccounts.isEmpty()) this.plugin.getScheduler().runNextTick(globalTask -> broadcastAltAlert(playerName, finalAccounts, banned));
+            List<AltAccountData> finalAccounts = accounts;
+            AltAccountData joiningAccount = new AltAccountData(uniqueId, playerName, now, getStorage().getBan(uniqueId));
+            if (!finalAccounts.isEmpty()) this.plugin.getScheduler().runNextTick(globalTask -> broadcastAltAlert(joiningAccount, finalAccounts));
         });
     }
 
-    private void broadcastAltAlert(String playerName, List<UserDTO> accounts, Map<UUID, Boolean> banned) {
-        String formattedAccounts = accounts.stream().map(account -> formatAccount(account, banned.getOrDefault(account.unique_id(), false))).collect(Collectors.joining(altAlertSeparator));
-        String formattedPlayer = altAlertOnlineFormat.replace("%account%", playerName);
-        String alert = altAlertMessage.replace("%player%", formattedPlayer).replace("%accounts%", formattedAccounts);
+    private void broadcastAltAlert(AltAccountData joiningAccount, List<AltAccountData> accounts) {
+        AltAccountDisplay joiningDisplay = resolveAltAccount(joiningAccount);
+        List<AltAccountDisplay> accountDisplays = accounts.stream().map(this::resolveAltAccount).toList();
         for (Player recipient : Bukkit.getOnlinePlayers()) {
             if (!recipient.hasPermission(altAlertPermission)) continue;
-            this.plugin.getScheduler().runAtEntity(recipient, task -> message(recipient, alert));
+            this.plugin.getScheduler().runAtEntity(recipient, task -> recipient.sendMessage(createAltAlert(recipient, joiningDisplay, accountDisplays)));
         }
     }
 
-    private String formatAccount(UserDTO account, boolean storageBanned) {
-        OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(account.unique_id());
-        boolean isBanned = storageBanned || offlinePlayer.isBanned();
-        String format = isBanned ? altAlertBannedFormat : offlinePlayer.isOnline() ? altAlertOnlineFormat : altAlertOfflineFormat;
-        return format.replace("%account%", account.name());
+    private AltAccountDisplay resolveAltAccount(AltAccountData account) {
+        OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(account.uniqueId());
+        Player onlinePlayer = Bukkit.getPlayer(account.uniqueId());
+        boolean online = onlinePlayer != null && onlinePlayer.isOnline();
+        long onlineSince = 0;
+        if (online) {
+            User user = this.plugin.getUser(account.uniqueId());
+            onlineSince = user == null ? onlinePlayer.getLastLogin() : user.getCurrentSessionPlayTime();
+            if (onlineSince <= 0) onlineSince = System.currentTimeMillis();
+        }
+        AltBanDetails banDetails = resolveBanDetails(account, offlinePlayer);
+        return new AltAccountDisplay(account.uniqueId(), account.name(), account.lastSeen(), online, onlineSince, banDetails);
+    }
+
+    private AltBanDetails resolveBanDetails(AltAccountData account, OfflinePlayer offlinePlayer) {
+        Sanction sanction = account.sanction();
+        if (sanction != null && sanction.isActive()) {
+            return new AltBanDetails(resolveSanctionSender(sanction.getSenderUniqueId()), sanction.getReason(), sanction.getExpiredAt(), false);
+        }
+        BanEntry<?> entry = Bukkit.getBanList(BanList.Type.NAME).getBanEntry(account.name());
+        if (entry != null && isActive(entry)) {
+            return new AltBanDetails(entry.getSource(), entry.getReason(), entry.getExpiration(), entry.getExpiration() == null);
+        }
+        if (offlinePlayer.isBanned()) return new AltBanDetails(altAlertUnknown, altAlertUnknown, null, false);
+        return null;
+    }
+
+    private boolean isActive(BanEntry<?> entry) {
+        Date expiration = entry.getExpiration();
+        return expiration == null || expiration.getTime() > System.currentTimeMillis();
+    }
+
+    private String resolveSanctionSender(UUID senderUniqueId) {
+        if (senderUniqueId == null) return altAlertUnknown;
+        if (senderUniqueId.equals(this.plugin.getConsoleUniqueId())) return Message.CONSOLE.getMessageAsString();
+        User user = this.plugin.getUser(senderUniqueId);
+        if (user != null) return user.getName();
+        String name = Bukkit.getOfflinePlayer(senderUniqueId).getName();
+        return name == null || name.isBlank() ? senderUniqueId.toString() : name;
+    }
+
+    private Component createAltAlert(Player recipient, AltAccountDisplay joiningAccount, List<AltAccountDisplay> accounts) {
+        AdventureComponent adventureComponent = (AdventureComponent) this.plugin.getComponentMessage();
+        Component formattedPlayer = formatAccount(adventureComponent, recipient, joiningAccount);
+        Component formattedAccounts = Component.empty();
+        Component separator = adventureComponent.getComponent(papi(altAlertSeparator, recipient));
+        for (int index = 0; index < accounts.size(); index++) {
+            if (index > 0) formattedAccounts = formattedAccounts.append(separator);
+            formattedAccounts = formattedAccounts.append(formatAccount(adventureComponent, recipient, accounts.get(index)));
+        }
+        String messageFormat = altAlertMessage
+                .replace("%player%", "<tlmstaff_player>")
+                .replace("%accounts%", "<tlmstaff_accounts>");
+        TagResolver resolver = TagResolver.builder()
+                .resolver(Placeholder.component("tlmstaff_player", formattedPlayer))
+                .resolver(Placeholder.component("tlmstaff_accounts", formattedAccounts))
+                .build();
+        return adventureComponent.getComponent(papi(messageFormat, recipient), resolver);
+    }
+
+    private Component formatAccount(AdventureComponent adventureComponent, Player recipient, AltAccountDisplay account) {
+        String format = account.banDetails() != null ? altAlertBannedFormat : account.online() ? altAlertOnlineFormat : altAlertOfflineFormat;
+        format = format.replace("%account%", "<tlmstaff_account>");
+        Component accountName = adventureComponent.getComponent(papi(format, recipient), Placeholder.component("tlmstaff_account", Component.text(account.name())));
+        return accountName.hoverEvent(HoverEvent.showText(createAccountHover(adventureComponent, recipient, account)));
+    }
+
+    private Component createAccountHover(AdventureComponent adventureComponent, Player recipient, AltAccountDisplay account) {
+        List<String> lines = new ArrayList<>(account.online() ? altAlertOnlineHover : altAlertOfflineHover);
+        if (account.banDetails() != null) lines.addAll(altAlertBannedHover);
+        Component hover = Component.empty();
+        for (int index = 0; index < lines.size(); index++) {
+            if (index > 0) hover = hover.append(Component.newline());
+            hover = hover.append(createHoverLine(adventureComponent, recipient, account, lines.get(index)));
+        }
+        return hover;
+    }
+
+    private Component createHoverLine(AdventureComponent adventureComponent, Player recipient, AltAccountDisplay account, String line) {
+        AltBanDetails banDetails = account.banDetails();
+        String time = account.online() ? TimerBuilder.getStringTime(Math.max(0, System.currentTimeMillis() - account.onlineSince())) : altAlertUnknown;
+        String lastSeen = account.lastSeen() == null ? altAlertUnknown : altAlertDateFormatter.format(account.lastSeen().toInstant());
+        String sender = banDetails == null || banDetails.sender() == null || banDetails.sender().isBlank() ? altAlertUnknown : banDetails.sender();
+        String reason = banDetails == null || banDetails.reason() == null || banDetails.reason().isBlank() ? altAlertUnknown : banDetails.reason();
+        String remaining = banDetails == null ? altAlertUnknown : formatRemaining(banDetails);
+        String format = line
+                .replace("%account%", "<tlmstaff_account>")
+                .replace("%time%", "<tlmstaff_time>")
+                .replace("%last_seen%", "<tlmstaff_last_seen>")
+                .replace("%sender%", "<tlmstaff_sender>")
+                .replace("%reason%", "<tlmstaff_reason>")
+                .replace("%remaining%", "<tlmstaff_remaining>");
+        TagResolver resolver = TagResolver.builder()
+                .resolver(Placeholder.component("tlmstaff_account", Component.text(account.name())))
+                .resolver(Placeholder.component("tlmstaff_time", Component.text(time)))
+                .resolver(Placeholder.component("tlmstaff_last_seen", Component.text(lastSeen)))
+                .resolver(Placeholder.component("tlmstaff_sender", Component.text(sender)))
+                .resolver(Placeholder.component("tlmstaff_reason", Component.text(reason)))
+                .resolver(Placeholder.component("tlmstaff_remaining", Component.text(remaining)))
+                .build();
+        return adventureComponent.getComponent(papi(format, recipient), resolver);
+    }
+
+    private String formatRemaining(AltBanDetails banDetails) {
+        if (banDetails.permanent()) return altAlertPermanent;
+        if (banDetails.expiration() == null) return altAlertUnknown;
+        return TimerBuilder.getStringTime(Math.max(0, banDetails.expiration().getTime() - System.currentTimeMillis()));
     }
 
     @EventHandler
@@ -637,5 +772,15 @@ public class TLMStaffModule extends ZModule {
 
     private record InspectData(ItemStack[] main, ItemStack[] armor, ItemStack offhand, List<String> effects,
                                double health, double maxHealth, int food, int level) {
+    }
+
+    private record AltAccountData(UUID uniqueId, String name, Date lastSeen, Sanction sanction) {
+    }
+
+    private record AltAccountDisplay(UUID uniqueId, String name, Date lastSeen, boolean online, long onlineSince,
+                                     AltBanDetails banDetails) {
+    }
+
+    private record AltBanDetails(String sender, String reason, Date expiration, boolean permanent) {
     }
 }

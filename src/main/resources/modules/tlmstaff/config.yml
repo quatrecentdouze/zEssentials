@@ -9,6 +9,18 @@ alt-alert:
     online: "&a%account%"
     offline: "&7%account%"
     banned: "&c%account%"
+  hover:
+    online:
+      - "&7Online for: &f%time%"
+    offline:
+      - "&7Last connection: &f%last_seen%"
+    banned:
+      - "&7Banned by: &f%sender%"
+      - "&7Reason: &f%reason%"
+      - "&7Remaining: &f%remaining%"
+    date-format: "yyyy-MM-dd HH:mm:ss"
+    permanent: "Permanent"
+    unknown: "Unknown"
 
 inspect:
   enabled: true
